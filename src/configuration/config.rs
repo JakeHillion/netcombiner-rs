@@ -44,9 +44,9 @@ impl<T: tun::Tun, B: udp::PlatformUDP> NetCombinerConfig<T, B> {
 }
 
 impl<T: tun::Tun, B: udp::PlatformUDP> NetCombinerConfig<T, B> {
-    pub fn new(wg: NetCombiner<T, B>) -> NetCombinerConfig<T, B> {
+    pub fn new(nc: NetCombiner<T, B>) -> NetCombinerConfig<T, B> {
         NetCombinerConfig(Arc::new(Mutex::new(Inner {
-            netcombiner: wg,
+            netcombiner: nc,
             port: 0,
             bind: None,
             fwmark: None,

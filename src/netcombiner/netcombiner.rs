@@ -219,7 +219,7 @@ impl<T: Tun, B: UDP> NetCombiner<T, B> {
             self.router.new_peer(PeerInner {
                 id: OsRng.gen(),
                 pk,
-                wg: self.clone(),
+                nc: self.clone(),
                 walltime_last_handshake: Mutex::new(None),
                 last_handshake_sent: Mutex::new(Instant::now() - TIME_HORIZON),
                 handshake_queued: AtomicBool::new(false),

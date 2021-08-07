@@ -54,10 +54,10 @@ const fn padding(size: usize, mtu: usize) -> usize {
     min(mtu, size + (pad - size % pad) % pad)
 }
 
-pub fn tun_worker<T: Tun, B: UDP>(wg: &NetCombiner<T, B>, reader: T::Reader) {
+pub fn tun_worker<T: Tun, B: UDP>(nc: &NetCombiner<T, B>, reader: T::Reader) {
     loop {
         // create vector big enough for any transport message (based on MTU)
-        let mtu = wg.mtu.load(Ordering::Relaxed);
+        let mtu = nc.mtu.load(Ordering::Relaxed);
         let size = mtu + SIZE_MESSAGE_PREFIX + 1;
         let mut msg: Vec<u8> = vec![0; size + CAPACITY_MESSAGE_POSTFIX];
 
@@ -95,15 +95,15 @@ pub fn tun_worker<T: Tun, B: UDP>(wg: &NetCombiner<T, B>, reader: T::Reader) {
         );
 
         // crypt-key route
-        let e = wg.router.send(msg);
+        let e = nc.router.send(msg);
         debug!("TUN worker, router returned {:?}", e);
     }
 }
 
-pub fn udp_worker<T: Tun, B: UDP>(wg: &NetCombiner<T, B>, reader: B::Reader) {
+pub fn udp_worker<T: Tun, B: UDP>(nc: &NetCombiner<T, B>, reader: B::Reader) {
     loop {
         // create vector big enough for any message given current MTU
-        let mtu = wg.mtu.load(Ordering::Relaxed);
+        let mtu = nc.mtu.load(Ordering::Relaxed);
         let size = mtu + MAX_HANDSHAKE_MSG_SIZE;
         let mut msg: Vec<u8> = vec![0; size];
 
@@ -128,15 +128,15 @@ pub fn udp_worker<T: Tun, B: UDP>(wg: &NetCombiner<T, B>, reader: B::Reader) {
         }
         match LittleEndian::read_u32(&msg[..]) {
             TYPE_COOKIE_REPLY | TYPE_INITIATION | TYPE_RESPONSE => {
-                debug!("{} : reader, received handshake message", wg);
-                wg.pending.fetch_add(1, Ordering::SeqCst);
-                wg.queue.send(HandshakeJob::Message(msg, src));
+                debug!("{} : reader, received handshake message", nc);
+                nc.pending.fetch_add(1, Ordering::SeqCst);
+                nc.queue.send(HandshakeJob::Message(msg, src));
             }
             TYPE_TRANSPORT => {
-                debug!("{} : reader, received transport message", wg);
+                debug!("{} : reader, received transport message", nc);
 
                 // transport message
-                let _ = wg.router.recv(src, msg).map_err(|e| {
+                let _ = nc.router.recv(src, msg).map_err(|e| {
                     debug!("Failed to handle incoming transport message: {}", e);
                 });
             }
@@ -146,31 +146,31 @@ pub fn udp_worker<T: Tun, B: UDP>(wg: &NetCombiner<T, B>, reader: B::Reader) {
 }
 
 pub fn handshake_worker<T: Tun, B: UDP>(
-    wg: &NetCombiner<T, B>,
+    nc: &NetCombiner<T, B>,
     rx: Receiver<HandshakeJob<B::Endpoint>>,
 ) {
-    debug!("{} : handshake worker, started", wg);
+    debug!("{} : handshake worker, started", nc);
 
     // process elements from the handshake queue
     for job in rx {
         // check if under load
         let mut under_load = false;
         let job: HandshakeJob<B::Endpoint> = job;
-        let pending = wg.pending.fetch_sub(1, Ordering::SeqCst);
+        let pending = nc.pending.fetch_sub(1, Ordering::SeqCst);
         debug_assert!(pending < MAX_QUEUED_INCOMING_HANDSHAKES + (1 << 16));
 
         // immediate go under load if too many handshakes pending
         if pending > THRESHOLD_UNDER_LOAD {
-            log::trace!("{} : handshake worker, under load (above threshold)", wg);
-            *wg.last_under_load.lock() = Instant::now();
+            log::trace!("{} : handshake worker, under load (above threshold)", nc);
+            *nc.last_under_load.lock() = Instant::now();
             under_load = true;
         }
 
         // remain under load for DURATION_UNDER_LOAD
         if !under_load {
-            let elapsed = wg.last_under_load.lock().elapsed();
+            let elapsed = nc.last_under_load.lock().elapsed();
             if DURATION_UNDER_LOAD >= elapsed {
-                log::trace!("{} : handshake worker, under load (recent)", wg);
+                log::trace!("{} : handshake worker, under load (recent)", nc);
                 under_load = true;
             }
         }
@@ -179,7 +179,7 @@ pub fn handshake_worker<T: Tun, B: UDP>(
         match job {
             HandshakeJob::Message(msg, mut src) => {
                 // process message
-                let device = wg.peers.read();
+                let device = nc.peers.read();
                 match device.process(
                     &mut OsRng,
                     &msg[..],
@@ -195,10 +195,10 @@ pub fn handshake_worker<T: Tun, B: UDP>(
                         if let Some(msg) = resp {
                             resp_len = msg.len() as u64;
                             // TODO: consider a more elegant solution for accessing the bind
-                            let _ = wg.router.send_raw(&msg[..], &mut src).map_err(|e| {
+                            let _ = nc.router.send_raw(&msg[..], &mut src).map_err(|e| {
                                 debug!(
                                     "{} : handshake worker, failed to send response, error = {}",
-                                    wg, e
+                                    nc, e
                                 );
                             });
                         }
@@ -219,20 +219,20 @@ pub fn handshake_worker<T: Tun, B: UDP>(
 
                             if resp_len > 0 {
                                 // update timers after sending handshake response
-                                debug!("{} : handshake worker, handshake response sent", wg);
+                                debug!("{} : handshake worker, handshake response sent", nc);
                                 peer.opaque().sent_handshake_response();
                             } else {
                                 // update timers after receiving handshake response
                                 debug!(
                                     "{} : handshake worker, handshake response was received",
-                                    wg
+                                    nc
                                 );
                                 peer.opaque().timers_handshake_complete();
                             }
 
                             // add any new keypair to peer
                             if let Some(kp) = keypair {
-                                debug!("{} : handshake worker, new keypair for {}", wg, peer);
+                                debug!("{} : handshake worker, new keypair for {}", nc, peer);
 
                                 // this means that a handshake response was processed or sent
                                 peer.opaque().timers_session_derived();
@@ -244,19 +244,19 @@ pub fn handshake_worker<T: Tun, B: UDP>(
                             };
                         }
                     }
-                    Err(e) => debug!("{} : handshake worker, error = {:?}", wg, e),
+                    Err(e) => debug!("{} : handshake worker, error = {:?}", nc, e),
                 }
             }
             HandshakeJob::New(pk) => {
-                if let Some(peer) = wg.peers.read().get(&pk) {
+                if let Some(peer) = nc.peers.read().get(&pk) {
                     debug!(
                         "{} : handshake worker, new handshake requested for {}",
-                        wg, peer
+                        nc, peer
                     );
-                    let device = wg.peers.read();
+                    let device = nc.peers.read();
                     let _ = device.begin(&mut OsRng, &pk).map(|msg| {
                         let _ = peer.send_raw(&msg[..]).map_err(|e| {
-                            debug!("{} : handshake worker, failed to send handshake initiation, error = {}", wg, e)
+                            debug!("{} : handshake worker, failed to send handshake initiation, error = {}", nc, e)
                         });
                         peer.opaque().sent_handshake_initiation();
                     });
