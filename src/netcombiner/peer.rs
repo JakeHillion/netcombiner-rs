@@ -4,7 +4,7 @@ use super::tun::Tun;
 use super::udp::UDP;
 
 use super::constants::REKEY_TIMEOUT;
-use super::wireguard::WireGuard;
+use super::netcombiner::NetCombiner;
 use super::workers::HandshakeJob;
 
 use std::fmt;
@@ -19,8 +19,8 @@ pub struct PeerInner<T: Tun, B: UDP> {
     // internal id (for logging)
     pub id: u64,
 
-    // wireguard device state
-    pub wg: WireGuard<T, B>,
+    // netcombiner device state
+    pub wg: NetCombiner<T, B>,
 
     // TODO: eliminate
     pub pk: PublicKey,

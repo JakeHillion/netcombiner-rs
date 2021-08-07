@@ -98,10 +98,10 @@ impl<'a, C: Configuration> LineParser<'a, C> {
             if let Some(endpoint) = peer.endpoint {
                 log::trace!("flush peer, set endpoint {}", endpoint.to_string());
                 config.set_endpoint(&peer.public_key, endpoint);
-            };
+            }
 
             None
-        };
+        }
 
         // parse line and update parser state
         match self.state {

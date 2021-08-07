@@ -1,5 +1,5 @@
 // This provides a mock tunnel interface.
-// Which enables unit tests where WireGuard interfaces
+// Which enables unit tests where NetCombiner interfaces
 // are configured to match each other and a full test of:
 //
 // - Handshake
@@ -26,7 +26,7 @@ pub struct TunTest {}
 
 // Represents the "other end" (kernel/OS end) of the TUN connection:
 //
-// Used to send/receive packets to the mock WireGuard interface.
+// Used to send/receive packets to the mock NetCombiner interface.
 pub struct TunFakeIO {
     id: u32,
     store: bool,

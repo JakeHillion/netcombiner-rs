@@ -9,8 +9,8 @@ extern crate cpuprofiler;
 use cpuprofiler::PROFILER;
 
 mod configuration;
+mod netcombiner;
 mod platform;
-mod wireguard;
 
 mod util;
 
@@ -24,7 +24,7 @@ use platform::tun::{PlatformTun, Status};
 use platform::uapi::{BindUAPI, PlatformUAPI};
 use platform::*;
 
-use wireguard::WireGuard;
+use netcombiner::NetCombiner;
 
 #[cfg(feature = "profiler")]
 fn profiler_stop() {
@@ -121,22 +121,22 @@ fn main() {
         .try_init()
         .expect("Failed to initialize event logger");
 
-    log::info!("Starting {} WireGuard device.", name);
+    log::info!("Starting {} NetCombiner device.", name);
 
     // start profiler (if enabled)
     #[cfg(feature = "profiler")]
     profiler_start(name.as_str());
 
-    // create WireGuard device
-    let wg: WireGuard<plt::Tun, plt::UDP> = WireGuard::new(writer);
+    // create NetCombiner device
+    let nc: NetCombiner<plt::Tun, plt::UDP> = NetCombiner::new(writer);
 
     // add all Tun readers
     while let Some(reader) = readers.pop() {
-        wg.add_tun_reader(reader);
+        nc.add_tun_reader(reader);
     }
 
     // wrap in configuration interface
-    let cfg = configuration::WireGuardConfig::new(wg.clone());
+    let cfg = configuration::NetCombinerConfig::new(nc.clone());
 
     // start Tun event thread
     {
@@ -180,6 +180,6 @@ fn main() {
     });
 
     // block until all tun readers closed
-    wg.wait();
+    nc.wait();
     profiler_stop();
 }

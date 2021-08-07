@@ -1,5 +1,5 @@
 use super::dummy;
-use super::wireguard::WireGuard;
+use super::netcombiner::NetCombiner;
 
 use std::convert::TryInto;
 use std::net::IpAddr;
@@ -60,7 +60,7 @@ fn init() {
 }
 
 /* Create and configure
- * two matching pure (no side-effects) instances of WireGuard.
+ * two matching pure (no side-effects) instances of NetCombiner.
  *
  * Test:
  *
@@ -69,30 +69,30 @@ fn init() {
  * - All packets are delivered in-order
  */
 #[test]
-fn test_pure_wireguard() {
+fn test_pure_netcombiner() {
     init();
 
-    // create WG instances for dummy TUN devices
+    // create NC instances for dummy TUN devices
 
     let (fake1, tun_reader1, tun_writer1, _) = dummy::TunTest::create(true);
-    let wg1: WireGuard<dummy::TunTest, dummy::PairBind> = WireGuard::new(tun_writer1);
-    wg1.add_tun_reader(tun_reader1);
-    wg1.up(1500);
+    let nc1: NetCombiner<dummy::TunTest, dummy::PairBind> = NetCombiner::new(tun_writer1);
+    nc1.add_tun_reader(tun_reader1);
+    nc1.up(1500);
 
     let (fake2, tun_reader2, tun_writer2, _) = dummy::TunTest::create(true);
-    let wg2: WireGuard<dummy::TunTest, dummy::PairBind> = WireGuard::new(tun_writer2);
-    wg2.add_tun_reader(tun_reader2);
-    wg2.up(1500);
+    let nc2: NetCombiner<dummy::TunTest, dummy::PairBind> = NetCombiner::new(tun_writer2);
+    nc2.add_tun_reader(tun_reader2);
+    nc2.up(1500);
 
     // create pair bind to connect the interfaces "over the internet"
 
     let ((bind_reader1, bind_writer1), (bind_reader2, bind_writer2)) = dummy::PairBind::pair();
 
-    wg1.set_writer(bind_writer1);
-    wg2.set_writer(bind_writer2);
+    nc1.set_writer(bind_writer1);
+    nc2.set_writer(bind_writer2);
 
-    wg1.add_udp_reader(bind_reader1);
-    wg2.add_udp_reader(bind_reader2);
+    nc1.add_udp_reader(bind_reader1);
+    nc2.add_udp_reader(bind_reader2);
 
     // configure (public, private) key pairs
 
@@ -112,17 +112,17 @@ fn test_pure_wireguard() {
 
     let pk2 = PublicKey::from(&sk2);
 
-    wg1.add_peer(pk2);
-    wg2.add_peer(pk1);
+    nc1.add_peer(pk2);
+    nc2.add_peer(pk1);
 
-    wg1.set_key(Some(sk1));
-    wg2.set_key(Some(sk2));
+    nc1.set_key(Some(sk1));
+    nc2.set_key(Some(sk2));
 
     // configure crypto-key router
 
     {
-        let peers1 = wg1.peers.read();
-        let peers2 = wg2.peers.read();
+        let peers1 = nc1.peers.read();
+        let peers2 = nc2.peers.read();
 
         let peer2 = peers1.get(&pk2).unwrap();
         let peer1 = peers2.get(&pk1).unwrap();

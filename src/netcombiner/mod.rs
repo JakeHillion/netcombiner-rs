@@ -1,11 +1,11 @@
-/// The wireguard sub-module represents a full, pure, WireGuard implementation:
+/// The netcombiner sub-module represents a full, pure, NetCombiner implementation:
 ///
-/// The WireGuard device described here does not depend on particular IO implementations
+/// The NetCombiner device described here does not depend on particular IO implementations
 /// or UAPI, and can be instantiated in unit-tests with the dummy IO implementation.
 ///
 /// The code at this level serves to "glue" the handshake state-machine
 /// and the crypto-key router code together,
-/// e.g. every WireGuard peer consists of one handshake peer and one router peer.
+/// e.g. every NetCombiner peer consists of one handshake peer and one router peer.
 mod constants;
 mod handshake;
 mod peer;
@@ -19,10 +19,10 @@ mod workers;
 mod tests;
 
 #[allow(clippy::module_inception)]
-mod wireguard;
+mod netcombiner;
 
-// represents a WireGuard interface
-pub use wireguard::WireGuard;
+// represents a NetCombiner interface
+pub use netcombiner::NetCombiner;
 
 #[cfg(test)]
 use super::platform::dummy;

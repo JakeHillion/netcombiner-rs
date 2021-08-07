@@ -158,7 +158,7 @@ impl<E: Endpoint, C: Callbacks, T: tun::Writer, B: udp::Writer<E>> DeviceHandle<
     }
 
     /// A new secret key has been set for the device.
-    /// According to WireGuard semantics, this should cause all "sending" keys to be discarded.
+    /// According to NetCombiner semantics, this should cause all "sending" keys to be discarded.
     pub fn clear_sending_keys(&self) {
         log::debug!("Clear sending keys");
         // TODO: Implement. Consider: The device does not have an explicit list of peers

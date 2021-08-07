@@ -1,4 +1,4 @@
-// WireGuard semantics constants
+// NetCombiner semantics constants
 
 pub const MAX_QUEUED_PACKETS: usize = 1024;
 

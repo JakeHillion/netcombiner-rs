@@ -29,7 +29,7 @@ use hjul::Runner;
 use spin::{Mutex, RwLock};
 use x25519_dalek::{PublicKey, StaticSecret};
 
-pub struct WireguardInner<T: Tun, B: UDP> {
+pub struct NetcombinerInner<T: Tun, B: UDP> {
     // identifier (for logging)
     pub id: u32,
 
@@ -60,28 +60,28 @@ pub struct WireguardInner<T: Tun, B: UDP> {
     pub queue: ParallelQueue<HandshakeJob<B::Endpoint>>,
 }
 
-pub struct WireGuard<T: Tun, B: UDP> {
-    inner: Arc<WireguardInner<T, B>>,
+pub struct NetCombiner<T: Tun, B: UDP> {
+    inner: Arc<NetcombinerInner<T, B>>,
 }
 
 pub struct WaitCounter(StdMutex<usize>, Condvar);
 
-impl<T: Tun, B: UDP> fmt::Display for WireGuard<T, B> {
+impl<T: Tun, B: UDP> fmt::Display for NetCombiner<T, B> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "wireguard({:x})", self.id)
+        write!(f, "netcombiner({:x})", self.id)
     }
 }
 
-impl<T: Tun, B: UDP> Deref for WireGuard<T, B> {
-    type Target = WireguardInner<T, B>;
+impl<T: Tun, B: UDP> Deref for NetCombiner<T, B> {
+    type Target = NetcombinerInner<T, B>;
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
-impl<T: Tun, B: UDP> Clone for WireGuard<T, B> {
+impl<T: Tun, B: UDP> Clone for NetCombiner<T, B> {
     fn clone(&self) -> Self {
-        WireGuard {
+        NetCombiner {
             inner: self.inner.clone(),
         }
     }
@@ -114,8 +114,8 @@ impl WaitCounter {
     }
 }
 
-impl<T: Tun, B: UDP> WireGuard<T, B> {
-    /// Brings the WireGuard device down.
+impl<T: Tun, B: UDP> NetCombiner<T, B> {
+    /// Brings the NetCombiner device down.
     /// Usually called when the associated interface is brought down.
     ///
     /// This stops any further action/timer on any peer
@@ -148,7 +148,7 @@ impl<T: Tun, B: UDP> WireGuard<T, B> {
         *enabled = false;
     }
 
-    /// Brings the WireGuard device up.
+    /// Brings the NetCombiner device up.
     /// Usually called when the associated interface is brought up.
     pub fn up(&self, mtu: usize) {
         // ensure exclusive access (to avoid race with "up" call)
@@ -265,7 +265,7 @@ impl<T: Tun, B: UDP> WireGuard<T, B> {
         self.tun_readers.wait();
     }
 
-    pub fn new(writer: T::Writer) -> WireGuard<T, B> {
+    pub fn new(writer: T::Writer) -> NetCombiner<T, B> {
         // workers equal to number of physical cores
         let cpus = num_cpus::get();
 
@@ -277,8 +277,8 @@ impl<T: Tun, B: UDP> WireGuard<T, B> {
             router::Device::new(num_cpus::get(), writer);
 
         // create arc to state
-        let wg = WireGuard {
-            inner: Arc::new(WireguardInner {
+        let wg = NetCombiner {
+            inner: Arc::new(NetcombinerInner {
                 enabled: RwLock::new(false),
                 tun_readers: WaitCounter::new(),
                 id: OsRng.gen(),

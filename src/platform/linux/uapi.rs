@@ -4,7 +4,7 @@ use std::fs;
 use std::io;
 use std::os::unix::net::{UnixListener, UnixStream};
 
-const SOCK_DIR: &str = "/var/run/wireguard/";
+const SOCK_DIR: &str = "/var/run/netcombiner/";
 
 pub struct LinuxUAPI {}
 

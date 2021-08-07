@@ -33,7 +33,7 @@ pub const DURATION_UNDER_LOAD: Duration = Duration::from_secs(1);
 pub const MESSAGE_PADDING_MULTIPLE: usize = 16;
 
 // Semantics:
-// Longest possible duration of any WireGuard timer
+// Longest possible duration of any NetCombiner timer
 pub const TIMER_MAX_DURATION: Duration = Duration::from_secs(200);
 
 // Semantics:
@@ -48,7 +48,7 @@ pub const TIMERS_SLOTS: usize = (TIMER_MAX_DURATION.as_micros() / TIMERS_TICK.as
 // Initial capacity of timer-wheel (grows to accommodate more timers).
 pub const TIMERS_CAPACITY: usize = 16;
 
-/* A long duration (compared to the WireGuard time constants),
+/* A long duration (compared to the NetCombiner time constants),
  * used in places to avoid Option<Instant> by instead using a long "expired" Instant:
  * (Instant::now() - TIME_HORIZON)
  *

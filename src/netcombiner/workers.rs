@@ -25,7 +25,7 @@ use super::handshake::MAX_HANDSHAKE_MSG_SIZE;
 use super::handshake::{TYPE_COOKIE_REPLY, TYPE_INITIATION, TYPE_RESPONSE};
 use super::router::{CAPACITY_MESSAGE_POSTFIX, SIZE_MESSAGE_PREFIX, TYPE_TRANSPORT};
 
-use super::wireguard::WireGuard;
+use super::netcombiner::NetCombiner;
 
 pub enum HandshakeJob<E> {
     Message(Vec<u8>, E),
@@ -54,7 +54,7 @@ const fn padding(size: usize, mtu: usize) -> usize {
     min(mtu, size + (pad - size % pad) % pad)
 }
 
-pub fn tun_worker<T: Tun, B: UDP>(wg: &WireGuard<T, B>, reader: T::Reader) {
+pub fn tun_worker<T: Tun, B: UDP>(wg: &NetCombiner<T, B>, reader: T::Reader) {
     loop {
         // create vector big enough for any transport message (based on MTU)
         let mtu = wg.mtu.load(Ordering::Relaxed);
@@ -100,7 +100,7 @@ pub fn tun_worker<T: Tun, B: UDP>(wg: &WireGuard<T, B>, reader: T::Reader) {
     }
 }
 
-pub fn udp_worker<T: Tun, B: UDP>(wg: &WireGuard<T, B>, reader: B::Reader) {
+pub fn udp_worker<T: Tun, B: UDP>(wg: &NetCombiner<T, B>, reader: B::Reader) {
     loop {
         // create vector big enough for any message given current MTU
         let mtu = wg.mtu.load(Ordering::Relaxed);
@@ -146,7 +146,7 @@ pub fn udp_worker<T: Tun, B: UDP>(wg: &WireGuard<T, B>, reader: B::Reader) {
 }
 
 pub fn handshake_worker<T: Tun, B: UDP>(
-    wg: &WireGuard<T, B>,
+    wg: &NetCombiner<T, B>,
     rx: Receiver<HandshakeJob<B::Endpoint>>,
 ) {
     debug!("{} : handshake worker, started", wg);

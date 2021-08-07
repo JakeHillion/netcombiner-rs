@@ -10,10 +10,10 @@ use super::udp::Owner;
 use super::*;
 
 /// The goal of the configuration interface is, among others,
-/// to hide the IO implementations (over which the WG device is generic),
+/// to hide the IO implementations (over which the NC device is generic),
 /// from the configuration and UAPI code.
 ///
-/// Furthermore it forms the simpler interface for embedding WireGuard in other applications,
+/// Furthermore it forms the simpler interface for embedding NetCombiner in other applications,
 /// and hides the complex types of the implementation from the host application.
 
 /// Describes a snapshot of the state of a peer
@@ -28,25 +28,25 @@ pub struct PeerState {
     pub preshared_key: [u8; 32], // 0^32 is the "default value" (though treated like any other psk)
 }
 
-pub struct WireGuardConfig<T: tun::Tun, B: udp::PlatformUDP>(Arc<Mutex<Inner<T, B>>>);
+pub struct NetCombinerConfig<T: tun::Tun, B: udp::PlatformUDP>(Arc<Mutex<Inner<T, B>>>);
 
 struct Inner<T: tun::Tun, B: udp::PlatformUDP> {
-    wireguard: WireGuard<T, B>,
+    netcombiner: NetCombiner<T, B>,
     port: u16,
     bind: Option<B::Owner>,
     fwmark: Option<u32>,
 }
 
-impl<T: tun::Tun, B: udp::PlatformUDP> WireGuardConfig<T, B> {
+impl<T: tun::Tun, B: udp::PlatformUDP> NetCombinerConfig<T, B> {
     fn lock(&self) -> MutexGuard<Inner<T, B>> {
         self.0.lock().unwrap()
     }
 }
 
-impl<T: tun::Tun, B: udp::PlatformUDP> WireGuardConfig<T, B> {
-    pub fn new(wg: WireGuard<T, B>) -> WireGuardConfig<T, B> {
-        WireGuardConfig(Arc::new(Mutex::new(Inner {
-            wireguard: wg,
+impl<T: tun::Tun, B: udp::PlatformUDP> NetCombinerConfig<T, B> {
+    pub fn new(wg: NetCombiner<T, B>) -> NetCombinerConfig<T, B> {
+        NetCombinerConfig(Arc::new(Mutex::new(Inner {
+            netcombiner: wg,
             port: 0,
             bind: None,
             fwmark: None,
@@ -54,9 +54,9 @@ impl<T: tun::Tun, B: udp::PlatformUDP> WireGuardConfig<T, B> {
     }
 }
 
-impl<T: tun::Tun, B: udp::PlatformUDP> Clone for WireGuardConfig<T, B> {
+impl<T: tun::Tun, B: udp::PlatformUDP> Clone for NetCombinerConfig<T, B> {
     fn clone(&self) -> Self {
-        WireGuardConfig(self.0.clone())
+        NetCombinerConfig(self.0.clone())
     }
 }
 
@@ -208,12 +208,12 @@ fn start_listener<T: tun::Tun, B: udp::PlatformUDP>(
     // set fwmark
     let _ = owner.set_fwmark(cfg.fwmark); // TODO: handle
 
-    // set writer on WireGuard
-    cfg.wireguard.set_writer(writer);
+    // set writer on NetCombiner
+    cfg.netcombiner.set_writer(writer);
 
     // add readers
     while let Some(reader) = readers.pop() {
-        cfg.wireguard.add_udp_reader(reader);
+        cfg.netcombiner.add_udp_reader(reader);
     }
 
     // create new UDP state
@@ -221,18 +221,18 @@ fn start_listener<T: tun::Tun, B: udp::PlatformUDP>(
     Ok(())
 }
 
-impl<T: tun::Tun, B: udp::PlatformUDP> Configuration for WireGuardConfig<T, B> {
+impl<T: tun::Tun, B: udp::PlatformUDP> Configuration for NetCombinerConfig<T, B> {
     fn up(&self, mtu: usize) -> Result<(), ConfigError> {
         log::info!("configuration, set device up");
         let cfg = self.lock();
-        cfg.wireguard.up(mtu);
+        cfg.netcombiner.up(mtu);
         start_listener(cfg)
     }
 
     fn down(&self) {
         log::info!("configuration, set device down");
         let mut cfg = self.lock();
-        cfg.wireguard.down();
+        cfg.netcombiner.down();
         cfg.bind = None;
     }
 
@@ -242,11 +242,11 @@ impl<T: tun::Tun, B: udp::PlatformUDP> Configuration for WireGuardConfig<T, B> {
 
     fn set_private_key(&self, sk: Option<StaticSecret>) {
         log::info!("configuration, set private key");
-        self.lock().wireguard.set_key(sk)
+        self.lock().netcombiner.set_key(sk)
     }
 
     fn get_private_key(&self) -> Option<StaticSecret> {
-        self.lock().wireguard.get_sk()
+        self.lock().netcombiner.get_sk()
     }
 
     fn get_protocol_version(&self) -> usize {
@@ -293,41 +293,41 @@ impl<T: tun::Tun, B: udp::PlatformUDP> Configuration for WireGuardConfig<T, B> {
     }
 
     fn replace_peers(&self) {
-        self.lock().wireguard.clear_peers();
+        self.lock().netcombiner.clear_peers();
     }
 
     fn remove_peer(&self, peer: &PublicKey) {
-        self.lock().wireguard.remove_peer(peer);
+        self.lock().netcombiner.remove_peer(peer);
     }
 
     fn add_peer(&self, peer: &PublicKey) -> bool {
-        self.lock().wireguard.add_peer(*peer)
+        self.lock().netcombiner.add_peer(*peer)
     }
 
     fn set_preshared_key(&self, peer: &PublicKey, psk: [u8; 32]) {
-        self.lock().wireguard.set_psk(*peer, psk);
+        self.lock().netcombiner.set_psk(*peer, psk);
     }
 
     fn set_endpoint(&self, peer: &PublicKey, addr: SocketAddr) {
-        if let Some(peer) = self.lock().wireguard.peers.read().get(peer) {
+        if let Some(peer) = self.lock().netcombiner.peers.read().get(peer) {
             peer.set_endpoint(B::Endpoint::from_address(addr));
         }
     }
 
     fn set_persistent_keepalive_interval(&self, peer: &PublicKey, secs: u64) {
-        if let Some(peer) = self.lock().wireguard.peers.read().get(peer) {
+        if let Some(peer) = self.lock().netcombiner.peers.read().get(peer) {
             peer.opaque().set_persistent_keepalive_interval(secs);
         }
     }
 
     fn replace_allowed_ips(&self, peer: &PublicKey) {
-        if let Some(peer) = self.lock().wireguard.peers.read().get(peer) {
+        if let Some(peer) = self.lock().netcombiner.peers.read().get(peer) {
             peer.remove_allowed_ips();
         }
     }
 
     fn add_allowed_ip(&self, peer: &PublicKey, ip: IpAddr, masklen: u32) {
-        if let Some(peer) = self.lock().wireguard.peers.read().get(peer) {
+        if let Some(peer) = self.lock().netcombiner.peers.read().get(peer) {
             peer.add_allowed_ip(ip, masklen);
         }
     }
@@ -353,7 +353,7 @@ impl<T: tun::Tun, B: udp::PlatformUDP> Configuration for WireGuardConfig<T, B> {
 
     fn get_peers(&self) -> Vec<PeerState> {
         let cfg = self.lock();
-        let peers = cfg.wireguard.peers.read();
+        let peers = cfg.netcombiner.peers.read();
         let mut state = Vec::with_capacity(peers.len());
 
         for (pk, p) in peers.iter() {
@@ -365,7 +365,7 @@ impl<T: tun::Tun, B: udp::PlatformUDP> Configuration for WireGuardConfig<T, B> {
                 (duration.as_secs(), duration.subsec_nanos() as u64)
             });
 
-            if let Some(psk) = cfg.wireguard.get_psk(&pk) {
+            if let Some(psk) = cfg.netcombiner.get_psk(&pk) {
                 // extract state into PeerState
                 state.push(PeerState {
                     preshared_key: psk,

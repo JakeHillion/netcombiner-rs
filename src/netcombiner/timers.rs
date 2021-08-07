@@ -13,7 +13,7 @@ use super::router::{message_data_len, Callbacks};
 use super::tun::Tun;
 use super::types::KeyPair;
 use super::udp::UDP;
-use super::WireGuard;
+use super::NetCombiner;
 
 pub struct Timers {
     // only updated during configuration
@@ -232,9 +232,9 @@ impl<T: Tun, B: UDP> PeerInner<T, B> {
 
 impl Timers {
     pub fn new<T: Tun, B: UDP>(
-        wg: WireGuard<T, B>, // WireGuard device
-        pk: PublicKey,       // public key of peer
-        running: bool,       // timers started
+        nc: NetCombiner<T, B>, // NetCombiner device
+        pk: PublicKey,         // public key of peer
+        running: bool,         // timers started
     ) -> Timers {
         macro_rules! fetch_peer {
             ( $wg:expr, $pk:expr, $peer:ident) => {
@@ -257,7 +257,7 @@ impl Timers {
             };
         }
 
-        let runner = wg.runner.lock();
+        let runner = nc.runner.lock();
 
         // create a timer instance for the provided peer
         Timers {
@@ -267,10 +267,10 @@ impl Timers {
             sent_lastminute_handshake: AtomicBool::new(false),
             handshake_attempts: AtomicUsize::new(0),
             retransmit_handshake: {
-                let wg = wg.clone();
+                let nc = nc.clone();
                 runner.timer(move || {
                     // fetch peer by public key
-                    fetch_peer!(wg, pk, peer);
+                    fetch_peer!(nc, pk, peer);
                     fetch_timers!(peer, timers);
 
                     // check if handshake attempts remaining
@@ -298,10 +298,10 @@ impl Timers {
                 })
             },
             send_keepalive: {
-                let wg = wg.clone();
+                let nc = nc.clone();
                 runner.timer(move || {
                     // fetch peer by public key
-                    fetch_peer!(wg, pk, peer);
+                    fetch_peer!(nc, pk, peer);
                     fetch_timers!(peer, timers);
 
                     // send keepalive and schedule next keepalive
@@ -312,10 +312,10 @@ impl Timers {
                 })
             },
             new_handshake: {
-                let wg = wg.clone();
+                let nc = nc.clone();
                 runner.timer(move || {
                     // fetch peer by public key
-                    fetch_peer!(wg, pk, peer);
+                    fetch_peer!(nc, pk, peer);
                     fetch_timers!(peer, timers);
 
                     // clear source and retry
@@ -329,10 +329,10 @@ impl Timers {
                 })
             },
             zero_key_material: {
-                let wg = wg.clone();
+                let nc = nc.clone();
                 runner.timer(move || {
                     // fetch peer by public key
-                    fetch_peer!(wg, pk, peer);
+                    fetch_peer!(nc, pk, peer);
                     log::trace!("{} : timer fired (zero_key_material)", peer);
 
                     // null all key-material
@@ -340,10 +340,10 @@ impl Timers {
                 })
             },
             send_persistent_keepalive: {
-                let wg = wg.clone();
+                let nc = nc.clone();
                 runner.timer(move || {
                     // fetch peer by public key
-                    fetch_peer!(wg, pk, peer);
+                    fetch_peer!(nc, pk, peer);
                     fetch_timers!(peer, timers);
                     log::trace!("{} : timer fired (send_persistent_keepalive)", peer);
 

@@ -1,9 +1,9 @@
 [package]
-authors = ["Mathias Hall-Andersen <mathias@hall-andersen.dk>"]
+authors = ["Jake Hillion <jake@hillion.co.uk>"]
 edition = "2018"
 license = "MIT"
-name = "wireguard-rs"
-version = "0.1.4"
+name = "netcombiner-rs"
+version = "0.1.0"
 
 [dependencies]
 aead = "^0.3"

@@ -4,7 +4,7 @@ mod udp;
 
 /* A pure dummy platform available during "test-time"
  *
- * The use of the dummy platform is to enable unit testing of full WireGuard,
+ * The use of the dummy platform is to enable unit testing of full NetCombiner,
  * the configuration interface and the UAPI parser.
  */
 
