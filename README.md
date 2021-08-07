@@ -27,10 +27,6 @@ the two connections and the combined uptime, at the cost of increased latency.
 
 Tested primarily on Linux.
 
-### Windows
-
-Coming soon.
-
 ### FreeBSD
 
 Coming soon.
