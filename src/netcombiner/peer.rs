@@ -20,7 +20,7 @@ pub struct PeerInner<T: Tun, B: UDP> {
     pub id: u64,
 
     // netcombiner device state
-    pub wg: NetCombiner<T, B>,
+    pub nc: NetCombiner<T, B>,
 
     // TODO: eliminate
     pub pk: PublicKey,
@@ -59,8 +59,8 @@ impl<T: Tun, B: UDP> PeerInner<T, B> {
 
         // create a new handshake job for the peer
         if !self.handshake_queued.swap(true, Ordering::SeqCst) {
-            self.wg.pending.fetch_add(1, Ordering::SeqCst);
-            self.wg.queue.send(HandshakeJob::New(self.pk));
+            self.nc.pending.fetch_add(1, Ordering::SeqCst);
+            self.nc.queue.send(HandshakeJob::New(self.pk));
             log::trace!(
                 "{} : packet_send_handshake_initiation, handshake queued",
                 self

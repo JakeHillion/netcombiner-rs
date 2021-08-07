@@ -238,9 +238,9 @@ impl<T: Tun, B: UDP> NetCombiner<T, B> {
     /// Any previous reader thread is stopped by closing the previous reader,
     /// which unblocks the thread and causes an error on reader.read
     pub fn add_udp_reader(&self, reader: B::Reader) {
-        let wg = self.clone();
+        let nc = self.clone();
         thread::spawn(move || {
-            udp_worker(&wg, reader);
+            udp_worker(&nc, reader);
         });
     }
 
@@ -249,15 +249,15 @@ impl<T: Tun, B: UDP> NetCombiner<T, B> {
     }
 
     pub fn add_tun_reader(&self, reader: T::Reader) {
-        let wg = self.clone();
+        let nc = self.clone();
 
         // increment reader count
-        wg.tun_readers.increase();
+        nc.tun_readers.increase();
 
         // start worker
         thread::spawn(move || {
-            tun_worker(&wg, reader);
-            wg.tun_readers.decrease();
+            tun_worker(&nc, reader);
+            nc.tun_readers.decrease();
         });
     }
 
@@ -277,7 +277,7 @@ impl<T: Tun, B: UDP> NetCombiner<T, B> {
             router::Device::new(num_cpus::get(), writer);
 
         // create arc to state
-        let wg = NetCombiner {
+        let nc = NetCombiner {
             inner: Arc::new(NetcombinerInner {
                 enabled: RwLock::new(false),
                 tun_readers: WaitCounter::new(),
@@ -294,10 +294,10 @@ impl<T: Tun, B: UDP> NetCombiner<T, B> {
 
         // start handshake workers
         while let Some(rx) = rxs.pop() {
-            let wg = wg.clone();
-            thread::spawn(move || handshake_worker(&wg, rx));
+            let nc = nc.clone();
+            thread::spawn(move || handshake_worker(&nc, rx));
         }
 
-        wg
+        nc
     }
 }
